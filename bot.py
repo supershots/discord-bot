@@ -13,13 +13,12 @@ ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 FOLDER_ID = "1Weoz06pU3Dxjw5kRA8fq5BKX5N8FOFAn"
 
 def load_drive_files():
-    import json
-creds_json = os.environ.get("GOOGLE_CREDENTIALS")
-creds_dict = json.loads(creds_json)
-creds = service_account.Credentials.from_service_account_info(
-    creds_dict,
-    scopes=["https://www.googleapis.com/auth/drive.readonly"]
-)
+    creds_json = os.environ.get("GOOGLE_CREDENTIALS")
+    creds_dict = json.loads(creds_json)
+    creds = service_account.Credentials.from_service_account_info(
+        creds_dict,
+        scopes=["https://www.googleapis.com/auth/drive.readonly"]
+    )
     service = build("drive", "v3", credentials=creds)
     results = service.files().list(
         q=f"'{FOLDER_ID}' in parents",
@@ -30,13 +29,11 @@ creds = service_account.Credentials.from_service_account_info(
     for file in files:
         try:
             if file["mimeType"] == "application/vnd.google-apps.document":
-                # Googleドキュメント
                 content = service.files().export(
                     fileId=file["id"], mimeType="text/plain"
                 ).execute()
                 all_text += f"\n【{file['name']}】\n{content.decode('utf-8')}\n"
             elif "wordprocessingml" in file["mimeType"]:
-                # Wordファイル
                 request = service.files().get_media(fileId=file["id"])
                 fh = io.BytesIO()
                 downloader = MediaIoBaseDownload(fh, request)
@@ -48,7 +45,6 @@ creds = service_account.Credentials.from_service_account_info(
                 text = "\n".join([p.text for p in doc.paragraphs])
                 all_text += f"\n【{file['name']}】\n{text}\n"
             elif "spreadsheetml" in file["mimeType"]:
-                # Excelファイル
                 request = service.files().get_media(fileId=file["id"])
                 fh = io.BytesIO()
                 downloader = MediaIoBaseDownload(fh, request)
