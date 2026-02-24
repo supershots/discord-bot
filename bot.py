@@ -90,8 +90,11 @@ async def on_ready():
 async def on_message(message):
     if message.author == client.user:
         return
-    if message.channel.name != "作業の質問":
+    
+    # DMのみ反応する
+    if not isinstance(message.channel, discord.DMChannel):
         return
+
     thinking_msg = await message.reply("考え中です...少し待ってね🤔")
     try:
         response = ai_client.messages.create(
