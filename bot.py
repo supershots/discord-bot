@@ -21,48 +21,59 @@ def load_drive_files():
         scopes=["https://www.googleapis.com/auth/drive.readonly"]
     )
     service = build("drive", "v3", credentials=creds)
-    results = service.files().list(
-        q=f"'{FOLDER_ID}' in parents",
-        fields="files(id, name, mimeType)"
-    ).execute()
-    files = results.get("files", [])
-    all_text = ""
-    for file in files:
-        try:
-            if file["mimeType"] == "application/vnd.google-apps.document":
-                content = service.files().export(
-                    fileId=file["id"], mimeType="text/plain"
-                ).execute()
-                all_text += f"\n【{file['name']}】\n{content.decode('utf-8')}\n"
-            elif "wordprocessingml" in file["mimeType"]:
-                request = service.files().get_media(fileId=file["id"])
-                fh = io.BytesIO()
-                downloader = MediaIoBaseDownload(fh, request)
-                done = False
-                while not done:
-                    _, done = downloader.next_chunk()
-                fh.seek(0)
-                doc = docx.Document(fh)
-                text = "\n".join([p.text for p in doc.paragraphs])
-                all_text += f"\n【{file['name']}】\n{text}\n"
-            elif "spreadsheetml" in file["mimeType"]:
-                request = service.files().get_media(fileId=file["id"])
-                fh = io.BytesIO()
-                downloader = MediaIoBaseDownload(fh, request)
-                done = False
-                while not done:
-                    _, done = downloader.next_chunk()
-                fh.seek(0)
-                wb = openpyxl.load_workbook(fh)
-                text = ""
-                for sheet in wb.sheetnames:
-                    ws = wb[sheet]
-                    for row in ws.iter_rows(values_only=True):
-                        text += " ".join([str(c) for c in row if c]) + "\n"
-                all_text += f"\n【{file['name']}】\n{text}\n"
-        except Exception as e:
-            print(f"{file['name']} の読み込みエラー：{e}")
-    return all_text
+
+    def read_folder(folder_id):
+        results = service.files().list(
+            q=f"'{folder_id}' in parents",
+            fields="files(id, name, mimeType)"
+        ).execute()
+        files = results.get("files", [])
+        print(f"フォルダ内のファイル数: {len(files)}")
+        for file in files:
+            print(f"ファイル名: {file['name']}, タイプ: {file['mimeType']}")
+
+        text = ""
+        for file in files:
+            # サブフォルダは再帰的に読み込む
+            if file["mimeType"] == "application/vnd.google-apps.folder":
+                text += read_folder(file["id"])
+                continue
+            try:
+                if file["mimeType"] == "application/vnd.google-apps.document":
+                    content = service.files().export(
+                        fileId=file["id"], mimeType="text/plain"
+                    ).execute()
+                    text += f"\n【{file['name']}】\n{content.decode('utf-8')}\n"
+                elif "wordprocessingml" in file["mimeType"]:
+                    request = service.files().get_media(fileId=file["id"])
+                    fh = io.BytesIO()
+                    downloader = MediaIoBaseDownload(fh, request)
+                    done = False
+                    while not done:
+                        _, done = downloader.next_chunk()
+                    fh.seek(0)
+                    doc = docx.Document(fh)
+                    text += f"\n【{file['name']}】\n" + "\n".join([p.text for p in doc.paragraphs]) + "\n"
+                elif "spreadsheetml" in file["mimeType"]:
+                    request = service.files().get_media(fileId=file["id"])
+                    fh = io.BytesIO()
+                    downloader = MediaIoBaseDownload(fh, request)
+                    done = False
+                    while not done:
+                        _, done = downloader.next_chunk()
+                    fh.seek(0)
+                    wb = openpyxl.load_workbook(fh)
+                    t = ""
+                    for sheet in wb.sheetnames:
+                        ws = wb[sheet]
+                        for row in ws.iter_rows(values_only=True):
+                            t += " ".join([str(c) for c in row if c]) + "\n"
+                    text += f"\n【{file['name']}】\n{t}\n"
+            except Exception as e:
+                print(f"{file['name']} の読み込みエラー：{e}")
+        return text
+
+    return read_folder(FOLDER_ID)
 
 intents = discord.Intents.default()
 intents.message_content = True
