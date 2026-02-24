@@ -13,10 +13,13 @@ ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 FOLDER_ID = "1Weoz06pU3Dxjw5kRA8fq5BKX5N8FOFAn"
 
 def load_drive_files():
-    creds = service_account.Credentials.from_service_account_file(
-        "credentials.json",
-        scopes=["https://www.googleapis.com/auth/drive.readonly"]
-    )
+    import json
+creds_json = os.environ.get("GOOGLE_CREDENTIALS")
+creds_dict = json.loads(creds_json)
+creds = service_account.Credentials.from_service_account_info(
+    creds_dict,
+    scopes=["https://www.googleapis.com/auth/drive.readonly"]
+)
     service = build("drive", "v3", credentials=creds)
     results = service.files().list(
         q=f"'{FOLDER_ID}' in parents",
